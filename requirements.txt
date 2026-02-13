@@ -1,0 +1,7 @@
+tensorflow>=2.10
+flask>=2.3
+numpy
+matplotlib
+seaborn
+scikit-learn
+Pillow

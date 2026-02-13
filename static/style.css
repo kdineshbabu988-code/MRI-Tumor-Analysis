@@ -1,0 +1,281 @@
+/* ═══════════════════════════════════════════════════════════
+   style.css — Brain Tumor Classifier UI
+   Modern dark theme with glassmorphism and micro-animations
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    --bg-primary: #0f0f1a;
+    --bg-card: rgba(22, 22, 40, 0.85);
+    --bg-card-hover: rgba(30, 30, 55, 0.9);
+    --border-card: rgba(99, 102, 241, 0.15);
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+    --accent-indigo: #6366f1;
+    --accent-cyan: #06b6d4;
+    --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.08);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+    background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(6, 182, 212, 0.05) 0%, transparent 60%);
+}
+
+/* ── Disclaimer Banner ─────────────────────────────────────── */
+.disclaimer-banner {
+    background: rgba(234, 179, 8, 0.12);
+    border-bottom: 1px solid rgba(234, 179, 8, 0.25);
+    color: #fbbf24;
+    text-align: center;
+    padding: 10px 20px;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+}
+
+/* ── Container ─────────────────────────────────────────────── */
+.container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+.header { margin-bottom: 36px; }
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.brain-icon { flex-shrink: 0; }
+
+.header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 400;
+    margin-top: 2px;
+}
+
+/* ── Cards ─────────────────────────────────────────────────── */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-glow);
+    transition: border-color var(--transition);
+}
+.card:hover { border-color: rgba(99, 102, 241, 0.3); }
+
+/* ── Drop Zone ─────────────────────────────────────────────── */
+.drop-zone {
+    border: 2px dashed rgba(99, 102, 241, 0.35);
+    border-radius: var(--radius-sm);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent-indigo);
+    background: rgba(99, 102, 241, 0.06);
+}
+
+.upload-icon { margin-bottom: 16px; opacity: 0.8; }
+.drop-text { font-size: 1.05rem; font-weight: 500; color: var(--text-primary); }
+.drop-subtext { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+.file-types { font-size: 0.75rem; color: var(--text-muted); margin-top: 12px; }
+
+/* ── Preview ───────────────────────────────────────────────── */
+.preview-section {
+    position: relative;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.preview-section img {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-card);
+}
+.btn-clear {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(239, 68, 68, 0.8);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition);
+}
+.btn-clear:hover { background: #ef4444; }
+
+/* ── Analyze Button ────────────────────────────────────────── */
+.btn-analyze {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-gradient);
+    color: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity var(--transition), transform var(--transition);
+}
+.btn-analyze:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+.btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Results ───────────────────────────────────────────────── */
+.results-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text-secondary);
+}
+
+.prediction-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.prediction-label {
+    font-size: 1.8rem;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.confidence-badge {
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 20px;
+}
+.conf-high { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.conf-mid  { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.conf-low  { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+
+/* ── Probability Bars ──────────────────────────────────────── */
+.prob-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.prob-label { width: 110px; font-size: 0.85rem; color: var(--text-secondary); text-transform: capitalize; }
+.prob-track {
+    flex: 1;
+    height: 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.prob-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.prob-value { width: 52px; text-align: right; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); }
+
+.results-meta {
+    margin-top: 16px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* ── Legend ─────────────────────────────────────────────────── */
+.legend-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+}
+.legend-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+.legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+.legend-item strong { font-size: 0.85rem; color: var(--text-primary); }
+.legend-item p { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+
+/* ── Footer ────────────────────────────────────────────────── */
+.footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+/* ── Utility ───────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .container { padding: 24px 14px 40px; }
+    .header h1 { font-size: 1.3rem; }
+    .prediction-label { font-size: 1.4rem; }
+    .legend-grid { grid-template-columns: 1fr; }
+}

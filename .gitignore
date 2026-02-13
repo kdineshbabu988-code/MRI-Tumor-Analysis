@@ -1,0 +1,25 @@
+# ─── Data & Models ───
+dataset/
+saved_models/
+uploads/
+logs/
+results/*.png
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+.venv/
+env/
+
+# ─── System ───
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ─── Pipeline Specific ───
+brain_tumor_model.h5
+train_model.py.txt
