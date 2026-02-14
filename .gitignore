@@ -13,6 +13,7 @@ __pycache__/
 venv/
 .venv/
 env/
+venv_old/
 
 # ─── System ───
 .DS_Store

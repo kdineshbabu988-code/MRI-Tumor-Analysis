@@ -12,6 +12,7 @@ import numpy as np
 from tensorflow.keras.models import load_model as keras_load_model
 
 import config
+from PIL import Image, ImageStat
 
 
 def ensure_dir(path: str) -> str:
@@ -130,3 +131,95 @@ def format_prediction(probabilities: np.ndarray) -> dict:
             for name, prob in zip(config.CLASS_NAMES, probabilities)
         },
     }
+
+
+def safe_format(probabilities: np.ndarray) -> tuple[bool, str, dict]:
+    """
+    Apply safety thresholds to model output to reject unrecognized/ambiguous images.
+
+    Thresholds (from config.py):
+    - PREDICTION_THRESHOLD = 0.92
+    - MAX_ENTROPY = 0.8
+    - MIN_MARGIN = 0.5
+
+    Returns:
+        tuple: (is_safe, error_message, result_dict)
+    """
+    # 1. Calculate Confidence
+    confidence = float(np.max(probabilities))
+    predicted_idx = int(np.argmax(probabilities))
+    
+    # 2. Calculate Entropy (Uncertainty)
+    # entropy = -sum(p * log(p))
+    valid_probs = probabilities[probabilities > 0]
+    entropy = -float(np.sum(valid_probs * np.log2(valid_probs)))
+    
+    # 3. Calculate Margin (Certainty)
+    sorted_probs = np.sort(probabilities)[::-1]
+    margin = float(sorted_probs[0] - sorted_probs[1]) if len(sorted_probs) > 1 else 1.0
+
+    result = format_prediction(probabilities)
+
+    # Rejection Logic
+    if confidence < config.PREDICTION_THRESHOLD:
+        return False, f"Low confidence ({confidence:.2f}). Image might not be a valid MRI/CT scan.", result
+    
+    if entropy > config.MAX_ENTROPY:
+        return False, f"High uncertainty (entropy: {entropy:.2f}). Image is too ambiguous.", result
+    
+    if margin < config.MIN_MARGIN:
+        return False, f"Low class separation (margin: {margin:.2f}). Prediction is too close.", result
+
+    return True, "", result
+
+
+def validate_image_content(filepath: str) -> tuple[bool, str]:
+    """
+    Validate that the image is a valid MRI/CT scan (low saturation, not blank).
+
+    Args:
+        filepath: Path to the image file.
+
+    Returns:
+        tuple (bool, str): (is_valid, error_message)
+    """
+    try:
+        # Open image
+        with Image.open(filepath) as img:
+            # 1. Convert to RGB for saturation check (even if original is grayscale)
+            img_rgb = img.convert("RGB")
+            # Convert to HSV to check saturation
+            # PIL doesn't have a direct "get saturation average", so we'll use a trick
+            # or convert to numpy for faster processing if needed.
+            # Using numpy since it's already a dependency for the model.
+            img_array = np.array(img_rgb)
+            
+            # 2. Check for blank images (zero variance)
+            variance = np.var(img_array)
+            if variance < config.MIN_PIXEL_VARIANCE:
+                return False, "Image is too uniform or blank. Please upload a clear MRI/CT scan."
+
+            # 3. Saturation check
+            # Convert RGB to HSV
+            # HSV: H=0-179, S=0-255, V=0-255 (if using cv2, but we use PIL->numpy)
+            # For grayscale, S should be near 0.
+            # Formula for S: (max(R,G,B) - min(R,G,B)) / max(R,G,B)
+            max_v = np.max(img_array, axis=2)
+            min_v = np.min(img_array, axis=2)
+            
+            # Avoid division by zero
+            mask = max_v > 0
+            saturation = np.zeros_like(max_v, dtype=np.float32)
+            saturation[mask] = (max_v[mask] - min_v[mask]) / max_v[mask]
+            
+            avg_saturation = np.mean(saturation)
+            
+            if avg_saturation > config.SATURATION_THRESHOLD:
+                return False, (
+                    f"Uploaded image appears to be a color photo (saturation: {avg_saturation:.2f}). "
+                    "Only MRI or CT scans (grayscale) are allowed for classification."
+                )
+
+        return True, ""
+    except Exception as e:
+        return False, f"Failed to process image: {str(e)}"

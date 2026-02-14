@@ -57,8 +57,23 @@ AUGMENTATION = {
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000
 FLASK_DEBUG = False
-MAX_UPLOAD_SIZE_MB = 10
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "tif", "tiff"}
+MAX_UPLOAD_SIZE_MB = 10
+
+# ─── Validation Settings ──────────────────────────────────────────────────
+# MRI/CT scans are typically grayscale, so we expect low saturation.
+# A threshold of 0.3 allows some slight tint but rejects colorful photos.
+SATURATION_THRESHOLD = 0.3
+# Min variance to reject blank or almost blank images.
+MIN_PIXEL_VARIANCE = 100
+
+# ─── Prediction Safety Thresholds ──────────────────────────────────────────
+# Minimum confidence required for a valid prediction.
+PREDICTION_THRESHOLD = 0.92
+# Maximum entropy (uncertainty) allowed.
+MAX_ENTROPY = 0.8
+# Minimum margin between the top two classes.
+MIN_MARGIN = 0.5
 
 # ─── Model File Names ───────────────────────────────────────────────────────
 CUSTOM_MODEL_NAME = "brain_tumor_custom_cnn.h5"

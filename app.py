@@ -17,7 +17,7 @@ from werkzeug.utils import secure_filename
 
 import config
 from data_pipeline import preprocess_single_image
-from utils import load_model, format_prediction, ensure_dir
+from utils import load_model, format_prediction, ensure_dir, validate_image_content
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -39,7 +39,7 @@ def _get_model():
     """Lazy-load the model (tries custom first, then resnet50)."""
     global _model, _model_type
     if _model is None:
-        for mt in ["custom", "resnet50"]:
+        for mt in ["resnet50", "custom"]:
             try:
                 _model = load_model(mt)
                 _model_type = mt
@@ -103,16 +103,35 @@ def predict():
                 "error": f"Invalid file type. Allowed: {', '.join(config.ALLOWED_EXTENSIONS)}"
             }), 400
 
-        # ── Save and process ─────────────────────────────────────────────
         filename = secure_filename(file.filename)
         filepath = os.path.join(UPLOAD_DIR, filename)
         file.save(filepath)
+
+        # ── Content Validation ───────────────────────────────────────────
+        # Reject unwanted non-MRI/CT images (e.g. random color photos)
+        is_valid, error_msg = validate_image_content(filepath)
+        if not is_valid:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({"success": False, "error": error_msg}), 400
 
         try:
             model = _get_model()
             img_array = preprocess_single_image(filepath)
             predictions = model.predict(img_array, verbose=0)
-            result = format_prediction(predictions[0])
+            
+            # Use safe_format for threshold validation
+            from utils import safe_format
+            is_safe, error_msg, result = safe_format(predictions[0])
+
+            if not is_safe:
+                return jsonify({
+                    "success": False,
+                    "error": error_msg,
+                    "all_probabilities": {
+                        k: round(v, 4) for k, v in result["all_probabilities"].items()
+                    }
+                }), 422  # Unprocessable Entity
 
             return jsonify({
                 "success": True,

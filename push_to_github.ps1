@@ -1,35 +1,45 @@
 # Brain Tumor Classification - GitHub Push Automation Script
 
-$gitPath = "C:\Program Files\Git\cmd\git.exe"
-Write-Host "Checking for Git installation at $gitPath..." -ForegroundColor Cyan
-if (!(Test-Path $gitPath)) {
-    Write-Host "Error: Git not found at $gitPath." -ForegroundColor Red
-    Write-Host "Please install Git or update the path in this script." -ForegroundColor Yellow
+# Use system git directly if available, otherwise fallback to default path
+$gitExe = "git"
+try {
+    $null = Get-Command $gitExe -ErrorAction Stop
+}
+catch {
+    $gitExe = "C:\Program Files\Git\cmd\git.exe"
+}
+
+Write-Host "Using Git at: $gitExe" -ForegroundColor Cyan
+if (!(Test-Path $gitExe) -and ($gitExe -ne "git")) {
+    Write-Host "Error: Git not found." -ForegroundColor Red
     exit
 }
 
 function git_run {
-    & $gitPath @args
+    & $gitExe @args
 }
 
-Write-Host "Git found! Proceeding with GitHub push..." -ForegroundColor Green
-
-# 1. Initialize and add files
-Write-Host "`n[1/3] Initializing Git and adding files..." -ForegroundColor Cyan
-git_run init
+Write-Host "`n[1/3] Preparing files..." -ForegroundColor Cyan
+if (!(Test-Path .git)) {
+    git_run init
+}
 git_run add .
-git_run commit -m "Initial commit: Production-ready MRI classification pipeline"
+git_run commit -m "Update MRI classification pipeline: Added safety validation and environment fixes"
 
-# 2. Configure Remote
-Write-Host "`n[2/3] Linking to repository..." -ForegroundColor Cyan
+Write-Host "`n[2/3] Configuring Remote..." -ForegroundColor Cyan
 git_run branch -M main
-if (git_run remote | findstr "origin") {
-    git_run remote remove origin
-}
-git_run remote add origin https://github.com/kdineshbabu988-code/MRI-Brain-Tumor-Classification.git
 
-# 3. Push
-Write-Host "`n[3/3] Pushing to GitHub (this may ask for your login)..." -ForegroundColor Cyan
+$remotes = git_run remote
+$repoUrl = "https://github.com/kdineshbabu988-code/MRI-Brain-Tumor-Classification.git"
+
+if ($remotes -contains "origin") {
+    git_run remote set-url origin $repoUrl
+}
+else {
+    git_run remote add origin $repoUrl
+}
+
+Write-Host "`n[3/3] Pushing to GitHub..." -ForegroundColor Cyan
 git_run push -u origin main
 
-Write-Host "`nDone! If you saw a login prompt, the push was successful." -ForegroundColor Green
+Write-Host "`nDone!" -ForegroundColor Green
