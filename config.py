@@ -1,19 +1,19 @@
 """
 config.py — Centralised configuration for the Brain Tumor Classification Pipeline.
-
-All hyperparameters, paths, and class definitions in one place.
 """
 
 import os
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_DIR = os.path.join(BASE_DIR, "dataset", "Training")
+DATASET_DIR = os.path.join(BASE_DIR, "Training")  # Corrected path
 SAVED_MODELS_DIR = os.path.join(BASE_DIR, "saved_models")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 
 # ─── Class Definitions ──────────────────────────────────────────────────────
+# Alphabetical Order Mandatory for Keras ImageDataGenerator
+# 0: glioma, 1: meningioma, 2: notumor, 3: pituitary
 CLASS_NAMES = ["glioma", "meningioma", "notumor", "pituitary"]
 NUM_CLASSES = len(CLASS_NAMES)
 
@@ -30,10 +30,14 @@ LEARNING_RATE = 1e-4
 VALIDATION_SPLIT = 0.2
 RANDOM_SEED = 42
 
+# ─── Fine-Tuning ─────────────────────────────────────────────────────────────
+FINE_TUNE_EPOCHS = 20
+FINE_TUNE_LEARNING_RATE = 1e-5
+
 # ─── Regularisation ─────────────────────────────────────────────────────────
-DROPOUT_CONV = 0.3          # Dropout after conv blocks
-DROPOUT_DENSE = 0.5         # Dropout before final dense layer
-L2_WEIGHT_DECAY = 1e-4      # L2 regularisation strength
+DROPOUT_CONV = 0.3
+DROPOUT_DENSE = 0.5
+L2_WEIGHT_DECAY = 1e-4
 
 # ─── Callbacks ───────────────────────────────────────────────────────────────
 EARLY_STOPPING_PATIENCE = 7
@@ -56,30 +60,38 @@ AUGMENTATION = {
 # ─── Flask Settings ──────────────────────────────────────────────────────────
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000
-FLASK_DEBUG = False
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "tif", "tiff"}
-MAX_UPLOAD_SIZE_MB = 10
+FLASK_DEBUG = True
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "tif", "tiff", "dcm", "dicom"}
+MAX_UPLOAD_SIZE_MB = 20
 
 # ─── Validation Settings ──────────────────────────────────────────────────
-# MRI/CT scans are typically grayscale, so we expect low saturation.
-# A threshold of 0.3 allows some slight tint but rejects colorful photos.
-SATURATION_THRESHOLD = 0.3
-# Min variance to reject blank or almost blank images.
-MIN_PIXEL_VARIANCE = 100
+# Stricter for Production
+SATURATION_THRESHOLD = 0.1
+MIN_PIXEL_VARIANCE = 500
+MIN_EDGE_DENSITY = 0.02
 
-# ─── Prediction Safety Thresholds ──────────────────────────────────────────
-# Minimum confidence required for a valid prediction.
-PREDICTION_THRESHOLD = 0.92
-# Maximum entropy (uncertainty) allowed.
-MAX_ENTROPY = 0.8
-# Minimum margin between the top two classes.
-MIN_MARGIN = 0.5
+# ─── Prediction Safety Thresholds (UPDATED FOR CALIBRATION) ─────────────
+# Relaxed threshold for medical calibration
+PREDICTION_THRESHOLD = 0.70   # Was 0.98
+REVIEW_THRESHOLD = 0.50       # Was 0.80
+# Entropy limit for ambiguity
+MAX_ENTROPY = 0.99            # Was 0.95
+# Margin for certainty
+MIN_MARGIN = 0.10             # Was 0.20
 
 # ─── Model File Names ───────────────────────────────────────────────────────
 CUSTOM_MODEL_NAME = "brain_tumor_custom_cnn.h5"
 RESNET_MODEL_NAME = "brain_tumor_resnet50.h5"
+EFFICIENTNET_MODEL_NAME = "brain_tumor_efficientnet.h5"
 
 def get_model_path(model_type="custom"):
     """Return the full path to the saved model file."""
-    name = CUSTOM_MODEL_NAME if model_type == "custom" else RESNET_MODEL_NAME
+    if model_type == "custom":
+        name = CUSTOM_MODEL_NAME
+    elif model_type == "resnet50":
+        name = RESNET_MODEL_NAME
+    elif model_type == "efficientnet":
+        name = EFFICIENTNET_MODEL_NAME
+    else:
+        name = CUSTOM_MODEL_NAME
     return os.path.join(SAVED_MODELS_DIR, name)

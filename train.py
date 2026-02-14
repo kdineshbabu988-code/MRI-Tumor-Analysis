@@ -66,7 +66,7 @@ def get_callbacks(model_type: str) -> list:
     ]
 
 
-def train(model_type: str = "custom", epochs: int = None):
+def train(model_type: str = "custom", epochs: int = None, fine_tune: bool = False):
     """
     Complete training workflow.
 
@@ -78,16 +78,22 @@ def train(model_type: str = "custom", epochs: int = None):
         5. Print final metrics summary.
 
     Args:
-        model_type: 'custom' or 'resnet50'.
+        model_type: 'custom', 'resnet50', or 'efficientnet'.
         epochs: Override for number of epochs (defaults to config.EPOCHS).
+        fine_tune: Boolean, whether to fine-tune the model (for transfer learning models).
     """
     epochs = epochs or config.EPOCHS
+
+    # Adjust epochs for fine-tuning if not explicitly set
+    if fine_tune and epochs == config.EPOCHS:
+         epochs = config.FINE_TUNE_EPOCHS
 
     # ── Print header ─────────────────────────────────────────────────────
     print("\n" + "=" * 60)
     print("  BRAIN TUMOR CLASSIFICATION - TRAINING")
     print("=" * 60)
     print(f"  Model      : {model_type}")
+    print(f"  Fine-tune  : {fine_tune}")
     print(f"  Epochs     : {epochs}")
     print(f"  Batch size : {config.BATCH_SIZE}")
     print(f"  Image size : {config.IMG_SIZE}")
@@ -100,7 +106,11 @@ def train(model_type: str = "custom", epochs: int = None):
 
     # ── Step 2: Model ────────────────────────────────────────────────────
     print("[2/4] Building model architecture...")
-    model = build_model(model_type)
+    # Pass fine_tune argument to the builder if it accepts it
+    if model_type in ["resnet50", "efficientnet"]:
+        model = build_model(model_type, fine_tune=fine_tune)
+    else:
+        model = build_model(model_type)
 
     # ── Step 3: Train ────────────────────────────────────────────────────
     print("[3/4] Starting training...\n")
@@ -145,9 +155,9 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        choices=["custom", "resnet50"],
-        default="custom",
-        help="Model architecture to train (default: custom)",
+        choices=["custom", "resnet50", "efficientnet"],
+        default="efficientnet",
+        help="Model architecture to train (default: efficientnet)",
     )
     parser.add_argument(
         "--epochs",
@@ -155,9 +165,14 @@ def parse_args():
         default=None,
         help=f"Number of training epochs (default: {config.EPOCHS})",
     )
+    parser.add_argument(
+        "--fine-tune",
+        action="store_true",
+        help="Unfreeze top layers for fine-tuning (ResNet/EfficientNet only).",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    train(model_type=args.model, epochs=args.epochs)
+    train(model_type=args.model, epochs=args.epochs, fine_tune=args.fine_tune)

@@ -7,18 +7,13 @@ Keras ImageDataGenerator. All parameters are driven from config.py.
 
 import numpy as np
 from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
-
 import config
-
+import cv2  # Still needed for some fallback or resizing if needed, but primary path uses load_img
 
 def create_data_generators():
     """
     Create training and validation data generators from the dataset directory.
-
     Training data is augmented; validation data is only rescaled.
-
-    Returns:
-        Tuple of (train_generator, val_generator).
     """
     # ── Training generator with augmentation ─────────────────────────────
     train_datagen = ImageDataGenerator(
@@ -67,16 +62,20 @@ def create_data_generators():
 def preprocess_single_image(image_path: str) -> np.ndarray:
     """
     Load and preprocess a single MRI image for inference.
-
-    Args:
-        image_path: Path to the image file.
-
-    Returns:
-        NumPy array of shape (1, IMG_HEIGHT, IMG_WIDTH, 3), rescaled to [0, 1].
+    EXACTLY MATCHES TRAINING PREPROCESSING.
     """
-    img = load_img(image_path, target_size=config.IMG_SIZE)
-    img_array = img_to_array(img) / 255.0
-    return np.expand_dims(img_array, axis=0)
+    # Use load_img to ensure consistency with training
+    # Only use basic Keras preprocessing as requested to fix mismatch
+    img = load_img(image_path, target_size=(config.IMG_HEIGHT, config.IMG_WIDTH))
+    img_array = img_to_array(img)
+    
+    # Normalize to [0,1]
+    img_array = img_array / 255.0
+    
+    # Add batch dimension
+    img_array = np.expand_dims(img_array, axis=0)
+    
+    return img_array
 
 
 def _print_generator_info(train_gen, val_gen):

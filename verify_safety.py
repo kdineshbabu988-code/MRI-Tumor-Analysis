@@ -20,6 +20,10 @@ def create_test_images():
     blank_img = np.zeros((224, 224), dtype=np.uint8)
     Image.fromarray(blank_img).save("test_images/invalid_blank.png")
 
+    # 4. Invalid Random Noise (Simulating complex non-medical data)
+    noise_img = np.random.randint(0, 256, (224, 224, 3), dtype=np.uint8)
+    Image.fromarray(noise_img).save("test_images/invalid_noise.png")
+
 def ensure_dir(path):
     if not os.path.exists(path):
         os.makedirs(path)
@@ -30,7 +34,8 @@ def test_validation():
     test_cases = [
         ("test_images/valid_mri.png", True),
         ("test_images/invalid_color.png", False),
-        ("test_images/invalid_blank.png", False)
+        ("test_images/invalid_blank.png", False),
+        ("test_images/invalid_noise.png", False)
     ]
     
     for path, expected in test_cases:

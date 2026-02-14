@@ -12,6 +12,7 @@ Usage:
 
 import os
 import traceback
+import numpy as np
 from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 
@@ -39,7 +40,8 @@ def _get_model():
     """Lazy-load the model (tries custom first, then resnet50)."""
     global _model, _model_type
     if _model is None:
-        for mt in ["resnet50", "custom"]:
+        # Priority: EfficientNet > ResNet50 > Custom
+        for mt in ["efficientnet", "resnet50", "custom"]:
             try:
                 _model = load_model(mt)
                 _model_type = mt
@@ -50,8 +52,8 @@ def _get_model():
         if _model is None:
             raise RuntimeError(
                 "No trained model found! Train a model first:\n"
-                "  python train.py --model custom\n"
-                "  python train.py --model resnet50"
+                "  python train.py --model efficientnet  (Recommended)\n"
+                "  python train.py --model custom"
             )
     return _model
 
@@ -117,30 +119,56 @@ def predict():
 
         try:
             model = _get_model()
-            img_array = preprocess_single_image(filepath)
-            predictions = model.predict(img_array, verbose=0)
             
-            # Use safe_format for threshold validation
+            # ── Test Time Augmentation (TTA) ──────────────────────────────
+            # We improve accuracy by predicting on:
+            # 1. The original image
+            # 2. The horizontally flipped image
+            # Then averaging the probabilities.
+            
+            # Preprocess original
+            img_array = preprocess_single_image(filepath)
+            
+            # Create a batch of 2 images: [original, flipped]
+            # Note: preprocess_single_image returns (1, 224, 224, 3)
+            # We access [0] to get (224, 224, 3)
+            img_orig = img_array[0]
+            img_flip = np.fliplr(img_orig)
+            
+            batch = np.array([img_orig, img_flip])
+            
+            # Get predictions for both
+            preds = model.predict(batch, verbose=0)
+            
+            # Average the predictions
+            avg_pred = np.mean(preds, axis=0)
+            
+            # Use safe_format for 3-tier validation (Reject/Review/Accept)
             from utils import safe_format
-            is_safe, error_msg, result = safe_format(predictions[0])
+            is_valid, message, result = safe_format(avg_pred)
 
-            if not is_safe:
+            if not is_valid:  # Status is 'reject'
                 return jsonify({
                     "success": False,
-                    "error": error_msg,
+                    "error": message,
+                    "status": result.get("status", "reject"),
                     "all_probabilities": {
                         k: round(v, 4) for k, v in result["all_probabilities"].items()
                     }
-                }), 422  # Unprocessable Entity
+                }), 422
 
+            # 'accept' or 'review'
             return jsonify({
                 "success": True,
+                "status": result["status"],
+                "message": message,
                 "predicted_class": result["predicted_class"],
                 "confidence": round(result["confidence"], 4),
                 "all_probabilities": {
                     k: round(v, 4) for k, v in result["all_probabilities"].items()
                 },
                 "model_type": _model_type,
+                "tta_enabled": True
             })
         finally:
             # Clean up uploaded file after prediction

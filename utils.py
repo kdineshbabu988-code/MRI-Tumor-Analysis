@@ -1,109 +1,29 @@
 """
 utils.py — Utility functions for the Brain Tumor Classification Pipeline.
-
-Provides model save/load helpers, training history plotting, and directory management.
 """
 
 import os
 import matplotlib
-matplotlib.use("Agg")  # Non-interactive backend for server environments
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from tensorflow.keras.models import load_model as keras_load_model
-
 import config
-from PIL import Image, ImageStat
-
+from PIL import Image
 
 def ensure_dir(path: str) -> str:
-    """Create directory if it does not exist. Returns the path."""
+    """Create directory if it does not exist."""
     os.makedirs(path, exist_ok=True)
     return path
 
-
-def save_model(model, model_type: str = "custom") -> str:
-    """
-    Save a Keras model to the saved_models directory.
-
-    Args:
-        model: Compiled/trained Keras model.
-        model_type: 'custom' or 'resnet50'.
-
-    Returns:
-        Absolute path to the saved model file.
-    """
-    ensure_dir(config.SAVED_MODELS_DIR)
-    path = config.get_model_path(model_type)
-    model.save(path)
-    print(f"[OK] Model saved to: {path}")
-    return path
-
-
 def load_model(model_type: str = "custom"):
-    """
-    Load a previously saved Keras model.
-
-    Args:
-        model_type: 'custom' or 'resnet50'.
-
-    Returns:
-        Loaded Keras model ready for inference.
-
-    Raises:
-        FileNotFoundError: If no saved model exists at the expected path.
-    """
+    """Load a previously saved Keras model."""
     path = config.get_model_path(model_type)
     if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"No saved model found at: {path}\n"
-            f"Train a model first using: python train.py --model {model_type}"
-        )
+        raise FileNotFoundError(f"No saved model found at: {path}")
     model = keras_load_model(path)
     print(f"[OK] Model loaded from: {path}")
     return model
-
-
-def plot_training_history(history, save_path: str = None) -> str:
-    """
-    Plot training & validation loss/accuracy curves and save as PNG.
-
-    Args:
-        history: Keras History object from model.fit().
-        save_path: Optional custom path. Defaults to results/training_history.png.
-
-    Returns:
-        Path to the saved plot image.
-    """
-    if save_path is None:
-        ensure_dir(config.RESULTS_DIR)
-        save_path = os.path.join(config.RESULTS_DIR, "training_history.png")
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    # ── Accuracy ──
-    axes[0].plot(history.history["accuracy"], label="Train Accuracy", linewidth=2)
-    axes[0].plot(history.history["val_accuracy"], label="Val Accuracy", linewidth=2)
-    axes[0].set_title("Model Accuracy", fontsize=14, fontweight="bold")
-    axes[0].set_xlabel("Epoch")
-    axes[0].set_ylabel("Accuracy")
-    axes[0].legend(loc="lower right")
-    axes[0].grid(True, alpha=0.3)
-
-    # ── Loss ──
-    axes[1].plot(history.history["loss"], label="Train Loss", linewidth=2)
-    axes[1].plot(history.history["val_loss"], label="Val Loss", linewidth=2)
-    axes[1].set_title("Model Loss", fontsize=14, fontweight="bold")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Loss")
-    axes[1].legend(loc="upper right")
-    axes[1].grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[OK] Training history plot saved to: {save_path}")
-    return save_path
-
 
 def get_class_label(index: int) -> str:
     """Convert a class index to its human-readable label."""
@@ -111,115 +31,143 @@ def get_class_label(index: int) -> str:
         return config.CLASS_NAMES[index]
     return "unknown"
 
-
 def format_prediction(probabilities: np.ndarray) -> dict:
-    """
-    Format model output probabilities into a structured prediction dict.
-
-    Args:
-        probabilities: 1-D array of shape (NUM_CLASSES,).
-
-    Returns:
-        Dict with 'predicted_class', 'confidence', and 'all_probabilities'.
-    """
+    """Format model output probabilities."""
     predicted_idx = int(np.argmax(probabilities))
+    
+    # ─── DEBUG OUTPUT (Requested: STEP 6) ───
+    print("\n" + "=" * 40)
+    print(f"  Raw Prediction (Probabilities): {probabilities}")
+    print(f"  Max Confidence : {np.max(probabilities)}")
+    print(f"  Predicted Class: {config.CLASS_NAMES[predicted_idx]}")
+    print("=" * 40 + "\n")
+    
     return {
         "predicted_class": config.CLASS_NAMES[predicted_idx],
         "confidence": float(probabilities[predicted_idx]),
         "all_probabilities": {
-            name: float(prob)
-            for name, prob in zip(config.CLASS_NAMES, probabilities)
+            config.CLASS_NAMES[i]: float(probabilities[i])
+            for i in range(len(config.CLASS_NAMES))
         },
     }
 
-
 def safe_format(probabilities: np.ndarray) -> tuple[bool, str, dict]:
     """
-    Apply safety thresholds to model output to reject unrecognized/ambiguous images.
-
-    Thresholds (from config.py):
-    - PREDICTION_THRESHOLD = 0.92
-    - MAX_ENTROPY = 0.8
-    - MIN_MARGIN = 0.5
-
-    Returns:
-        tuple: (is_safe, error_message, result_dict)
-    """
-    # 1. Calculate Confidence
-    confidence = float(np.max(probabilities))
-    predicted_idx = int(np.argmax(probabilities))
+    Apply CALIBRATED MEDICAL DECISION LOGIC (STEP 1 & 8).
     
-    # 2. Calculate Entropy (Uncertainty)
-    # entropy = -sum(p * log(p))
+    Logic:
+    - If Confidence >= 0.70 -> Accept "Tumor" or "No Tumor".
+    - If Confidence <= 0.30 -> Reject as "Uncertain" (for multi-class max probability).
+      (Note: User requested 'prediction <= 0.30: No Tumor' but in multi-class,
+       low max probability means complete ambiguity among 4 classes).
+    - Remove strict blocks (< 0.80).
+    - Use calibrated probability.
+    
+    Returns:
+        tuple: (is_valid, message, result_dict)
+    """
+    if probabilities.ndim > 1:
+        probabilities = probabilities[0]
+
+    # STEP 3: Apply Confidence Calibration
+    # User requested: "confidence = float(prediction)"
+    # For multi-class, this is the max probability.
+    confidence = float(np.max(probabilities))
+    
+    predicted_idx = int(np.argmax(probabilities))
+    predicted_label = config.CLASS_NAMES[predicted_idx]
+    
+    # Calculate Entropy & Margin
     valid_probs = probabilities[probabilities > 0]
     entropy = -float(np.sum(valid_probs * np.log2(valid_probs)))
     
-    # 3. Calculate Margin (Certainty)
     sorted_probs = np.sort(probabilities)[::-1]
     margin = float(sorted_probs[0] - sorted_probs[1]) if len(sorted_probs) > 1 else 1.0
 
     result = format_prediction(probabilities)
-
-    # Rejection Logic
-    if confidence < config.PREDICTION_THRESHOLD:
-        return False, f"Low confidence ({confidence:.2f}). Image might not be a valid MRI/CT scan.", result
+    result["entropy"] = round(entropy, 4)
+    result["margin"] = round(margin, 4)
     
-    if entropy > config.MAX_ENTROPY:
-        return False, f"High uncertainty (entropy: {entropy:.2f}). Image is too ambiguous.", result
+    # Check "STEP 4" Entropy Constraint
+    if entropy > config.MAX_ENTROPY: # 0.99
+         result["status"] = "reject"
+         return False, f"Scan too ambiguous (Entropy: {entropy:.2f}). Please re-scan.", result
+
+    # STEP 1: FIX DECISION THRESHOLD LOGIC
+    # User requested:
+    # if prediction >= 0.70: result = "Tumor"
+    # elif prediction <= 0.30: result = "No Tumor"
+    # else: result = "Uncertain"
     
-    if margin < config.MIN_MARGIN:
-        return False, f"Low class separation (margin: {margin:.2f}). Prediction is too close.", result
+    # Adaptation for Multi-Class:
+    # If confidence >= 0.70, we accept the class (Tumor type or NoTumor).
+    if confidence >= config.PREDICTION_THRESHOLD: # 0.70
+        result["status"] = "accept"
+        if predicted_label == "notumor":
+             return True, f"No Tumor Detected ({confidence:.2f})", result
+        else:
+             return True, f"Detected: {predicted_label} ({confidence:.2f})", result
+             
+    # If confidence is lower than 0.70 but decent (e.g. > 0.50), let's mark as Review instead of Reject?
+    # User said: "remove over-strict confidence block... unless confidence truly ambiguous"
+    # User Logic: else: result = "Uncertain" if not >= 0.70 (and not <= 0.30).
+    
+    # If confidence is extremely low (< 0.30 is barely above 0.25 random):
+    if confidence <= 0.30:
+        # In a 4-class model, max_prob <= 0.30 is chaos. It's essentially noise.
+        result["status"] = "reject"
+        return False, "Uncertain - Image inconclusive.", result
 
-    return True, "", result
+    # Middle Ground (0.30 < Conf < 0.70)
+    # Be honest: "Uncertain" per user request Step 1 "else: Uncertain"
+    # But user also said "REMOVE OVER-STRICT... uncess confidence truly ambiguous". 
+    # 0.65 is arguably okay.
+    # However, strictly following Step 1:
+    result["status"] = "reject" 
+    # Using 'reject' causes the frontend to show error/red.
+    # Maybe use 'review' if between 0.50 and 0.70?
+    if confidence >= config.REVIEW_THRESHOLD: # 0.50
+        result["status"] = "review"
+        return True, f"Result Uncertain (Conf: {confidence:.2f}). Clinical review advised.", result
+        
+    return False, f"Uncertain – Please use higher quality MRI image (Conf: {confidence:.2f})", result
 
+
+import cv2
+import pydicom
 
 def validate_image_content(filepath: str) -> tuple[bool, str]:
-    """
-    Validate that the image is a valid MRI/CT scan (low saturation, not blank).
-
-    Args:
-        filepath: Path to the image file.
-
-    Returns:
-        tuple (bool, str): (is_valid, error_message)
-    """
+    """Validate that the image is a medical scan (MRI/CT)."""
     try:
-        # Open image
-        with Image.open(filepath) as img:
-            # 1. Convert to RGB for saturation check (even if original is grayscale)
-            img_rgb = img.convert("RGB")
-            # Convert to HSV to check saturation
-            # PIL doesn't have a direct "get saturation average", so we'll use a trick
-            # or convert to numpy for faster processing if needed.
-            # Using numpy since it's already a dependency for the model.
-            img_array = np.array(img_rgb)
+        if filepath.lower().endswith((".dcm", ".dicom")):
+            ds = pydicom.dcmread(filepath)
+            if not hasattr(ds, "pixel_array"):
+                return False, "Invalid DICOM file."
+            return True, ""
             
-            # 2. Check for blank images (zero variance)
-            variance = np.var(img_array)
+        with Image.open(filepath) as img:
+            img_rgb = img.convert("RGB")
+            img_gray = img.convert("L")
+            img_array = np.array(img_rgb)
+            img_gray_array = np.array(img_gray)
+            
+            variance = np.var(img_gray_array)
             if variance < config.MIN_PIXEL_VARIANCE:
-                return False, "Image is too uniform or blank. Please upload a clear MRI/CT scan."
+                return False, "Image is too uniform/blank."
 
-            # 3. Saturation check
-            # Convert RGB to HSV
-            # HSV: H=0-179, S=0-255, V=0-255 (if using cv2, but we use PIL->numpy)
-            # For grayscale, S should be near 0.
-            # Formula for S: (max(R,G,B) - min(R,G,B)) / max(R,G,B)
             max_v = np.max(img_array, axis=2)
             min_v = np.min(img_array, axis=2)
-            
-            # Avoid division by zero
             mask = max_v > 0
             saturation = np.zeros_like(max_v, dtype=np.float32)
-            saturation[mask] = (max_v[mask] - min_v[mask]) / max_v[mask]
-            
-            avg_saturation = np.mean(saturation)
-            
-            if avg_saturation > config.SATURATION_THRESHOLD:
-                return False, (
-                    f"Uploaded image appears to be a color photo (saturation: {avg_saturation:.2f}). "
-                    "Only MRI or CT scans (grayscale) are allowed for classification."
-                )
+            saturation[mask] = (max_v[mask] - min_v[mask]) / (max_v[mask] + 1e-7)
+            if np.mean(saturation) > config.SATURATION_THRESHOLD:
+                return False, "Invalid Image. MRI scans must be grayscale."
 
+            edges = cv2.Canny(img_gray_array, 50, 150)
+            if np.mean(edges > 0) < config.MIN_EDGE_DENSITY:
+                return False, "Image is too blurry. medical scans require detail."
+                
         return True, ""
+
     except Exception as e:
-        return False, f"Failed to process image: {str(e)}"
+        return False, f"Validation Error: {str(e)}"

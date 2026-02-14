@@ -10,6 +10,8 @@ Both return a compiled Keras Model ready for training.
 
 from tensorflow.keras import layers, models, regularizers
 from tensorflow.keras.applications import ResNet50
+from tensorflow.keras import layers, models, regularizers
+from tensorflow.keras.applications import ResNet50, EfficientNetB0
 from tensorflow.keras.optimizers import Adam
 
 import config
@@ -161,6 +163,68 @@ def build_resnet50_model(fine_tune_layers: int = 0) -> models.Model:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+#  3. TRANSFER LEARNING — EfficientNetB0
+# ═════════════════════════════════════════════════════════════════════════════
+
+def build_efficientnet_model(fine_tune: bool = False) -> models.Model:
+    """
+    Build a brain tumor classifier using EfficientNetB0 (ImageNet weights).
+    EfficientNet is generally faster and more accurate than ResNet50.
+
+    Args:
+        fine_tune: If True, unfreeze the top 20 layers for adaptation.
+
+    Returns:
+        Compiled Keras Model.
+    """
+    base_model = EfficientNetB0(
+        weights="imagenet",
+        include_top=False,
+        input_shape=config.INPUT_SHAPE,
+    )
+
+    # Freeze base model
+    base_model.trainable = False
+
+    if fine_tune:
+        base_model.trainable = True
+        # Freeze all except the last 20 layers
+        for layer in base_model.layers[:-20]:
+            layer.trainable = False
+
+    # ── Classification head ──────────────────────────────────────────────
+    x = base_model.output
+    x = layers.GlobalAveragePooling2D(name="efficientnet_gap")(x)
+    x = layers.BatchNormalization(name="head_bn")(x)
+    
+    # EfficientNet has a rich feature set, so we can use a slightly larger dense layer or higher dropout
+    x = layers.Dense(
+        256, activation="relu", name="head_dense_256",
+        kernel_regularizer=regularizers.l2(config.L2_WEIGHT_DECAY),
+    )(x)
+    x = layers.Dropout(config.DROPOUT_DENSE, name="head_dropout")(x)
+    
+    outputs = layers.Dense(config.NUM_CLASSES, activation="softmax", name="predictions")(x)
+
+    model = models.Model(base_model.input, outputs, name="BrainTumor_EfficientNetB0")
+
+    # Lower LR if fine-tuning
+    lr = config.FINE_TUNE_LEARNING_RATE if fine_tune else config.LEARNING_RATE
+
+    model.compile(
+        optimizer=Adam(learning_rate=lr),
+        loss="categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+
+    trainable = sum(1 for l in model.layers if l.trainable)
+    frozen = sum(1 for l in model.layers if not l.trainable)
+    print(f"\n[OK] EfficientNetB0 model built - {model.count_params():,} total params")
+    print(f"    Trainable layers: {trainable}  |  Frozen layers: {frozen}")
+    return model
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 #  HELPER — Model selection by name
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -178,6 +242,7 @@ def build_model(model_type: str = "custom", **kwargs) -> models.Model:
     builders = {
         "custom": build_custom_cnn,
         "resnet50": build_resnet50_model,
+        "efficientnet": build_efficientnet_model,
     }
     if model_type not in builders:
         raise ValueError(f"Unknown model type '{model_type}'. Choose from: {list(builders.keys())}")

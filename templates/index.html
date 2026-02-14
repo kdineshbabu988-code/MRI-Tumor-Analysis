@@ -3,237 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Brain Tumor Classification from MRI Scans — Deep Learning Powered Analysis">
-    <title>Brain Tumor Classifier — MRI Analysis</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Brain Tumor Detection System | AI Diagnostics</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <!-- ── Clinical Disclaimer Banner ─────────────────────────────── -->
-    <div class="disclaimer-banner">
-        ⚠️ <strong>Research Tool Only</strong> — This system is NOT a medical device and should NOT be used for clinical diagnosis. Always consult a qualified medical professional.
-    </div>
 
+    <!-- Header -->
+    <header>
+        <div class="logo-container">
+            <i class="fas fa-brain logo-icon"></i>
+            <div>
+                <h1>NeuroScan AI</h1>
+                <small>Advanced Brain Tumor Classification</small>
+            </div>
+        </div>
+        <div>
+            <span class="badge" style="background:rgba(255,255,255,0.2); padding:5px 10px; border-radius:5px;">
+                <i class="fas fa-shield-alt"></i> ISO 27001 Secure
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
     <div class="container">
-        <!-- ── Header ─────────────────────────────────────────────── -->
-        <header class="header">
-            <div class="logo">
-                <svg class="brain-icon" viewBox="0 0 64 64" width="48" height="48">
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="url(#grad)" stroke-width="2.5"/>
-                    <path d="M22 20c4-6 16-6 20 0M18 32c0-8 6-14 14-14s14 6 14 14M20 40c4 6 20 6 24 0" fill="none" stroke="url(#grad)" stroke-width="2" stroke-linecap="round"/>
-                    <defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#06b6d4"/></linearGradient></defs>
-                </svg>
-                <div>
-                    <h1>Brain Tumor Classifier</h1>
-                    <p class="subtitle">AI-Powered MRI Scan Analysis</p>
+        
+        <!-- Left Column: Patient Info & Upload -->
+        <div class="card">
+            <h2><i class="fas fa-user-injured"></i> Patient Details</h2>
+            <form id="patientForm">
+                <div class="form-group">
+                    <label for="pName">Patient Name</label>
+                    <input type="text" id="pName" placeholder="Enter Full Name" required>
                 </div>
-            </div>
-        </header>
-
-        <!-- ── Upload Area ────────────────────────────────────────── -->
-        <div class="card upload-card">
-            <div id="dropZone" class="drop-zone">
-                <div class="drop-zone-content">
-                    <svg class="upload-icon" viewBox="0 0 48 48" width="56" height="56">
-                        <path d="M24 4L12 16h8v12h8V16h8z" fill="url(#ugr)"/>
-                        <rect x="8" y="36" width="32" height="4" rx="2" fill="url(#ugr)" opacity="0.5"/>
-                        <defs><linearGradient id="ugr" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#06b6d4"/></linearGradient></defs>
-                    </svg>
-                    <p class="drop-text">Drag & drop an MRI scan here</p>
-                    <p class="drop-subtext">or click to browse files</p>
-                    <p class="file-types">Supports: PNG, JPG, JPEG, BMP, TIFF</p>
+                <div style="display: flex; gap: 10px;">
+                    <div class="form-group" style="flex:1;">
+                        <label for="pAge">Age</label>
+                        <input type="number" id="pAge" placeholder="Age" required>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="pGender">Gender</label>
+                        <select id="pGender">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
                 </div>
-                <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.bmp,.tif,.tiff" hidden>
+                <div class="form-group">
+                    <label for="pDate">Scan Date</label>
+                    <input type="date" id="pDate">
+                </div>
+            </form>
+
+            <h2><i class="fas fa-microscope"></i> Image Analysis</h2>
+            <p style="margin-bottom:1rem; color:#666;">Upload an MRI or CT scan (JPG, PNG) to detect anomalies.</p>
+            
+            <div id="uploadArea" class="upload-area">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <p>Drag & Drop MRI Image Here</p>
+                <p style="font-size:0.8rem; color:#999;">or click to browse</p>
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
             </div>
 
-            <!-- ── Image Preview ──────────────────────────────────── -->
-            <div id="previewSection" class="preview-section hidden">
-                <img id="previewImage" alt="MRI Preview">
-                <button id="clearBtn" class="btn-clear" title="Remove image">&times;</button>
+            <div id="imagePreviewContainer">
+                <p style="font-weight:600; margin-bottom:0.5rem;">Preview:</p>
+                <img id="imagePreview" src="" alt="Scan Preview">
             </div>
 
-            <button id="analyzeBtn" class="btn-analyze hidden" disabled>
-                <span class="btn-text">Analyze Scan</span>
-                <span class="btn-loader hidden">
-                    <span class="spinner"></span> Analyzing...
-                </span>
+            <div id="errorMessage" class="error-message"></div>
+
+            <button id="analyzeBtn" class="btn-primary" type="button" disabled style="margin-top: 1.5rem;">
+                <i class="fas fa-search-plus"></i> Analyze Scan
             </button>
         </div>
 
-        <!-- ── Results ────────────────────────────────────────────── -->
-        <div id="resultsCard" class="card results-card hidden">
-            <h2 class="results-title">Analysis Results</h2>
-
-            <div class="prediction-main">
-                <div class="prediction-label" id="predictionLabel">—</div>
-                <div class="confidence-badge" id="confidenceBadge">0%</div>
+        <!-- Right Column: Results -->
+        <div class="card" id="resultsCard" style="position: relative; min-height: 400px;">
+            
+            <!-- Scanning Animation Overlay (Hidden by default) -->
+            <div id="scanningOverlay" class="scanning-overlay">
+                <div class="spinner"></div>
+                <div class="scanner-bar"></div>
+                <h2>Analyzing Neural Patterns...</h2>
+                <p>Please wait while AI processes the scan.</p>
             </div>
 
-            <div class="probability-bars" id="probabilityBars"></div>
-
-            <div class="results-meta">
-                <span id="modelInfo"></span>
+            <!-- Initial State -->
+            <div id="initialState" style="text-align: center; color:#999; margin-top:5rem;">
+                <i class="fas fa-chart-line" style="font-size: 4rem; color:#ddd; margin-bottom:1rem;"></i>
+                <p>Results will appear here after analysis.</p>
             </div>
+
+            <!-- Results Section (Hidden initially) -->
+            <div id="resultsSection" class="results-container" style="display: none;">
+                <h2><i class="fas fa-clipboard-check"></i> Analysis Report</h2>
+                
+                <div class="confidence-meter">
+                    <svg width="150" height="150">
+                        <circle class="circle-bg" cx="75" cy="75" r="70"></circle>
+                        <circle id="circleProgress" class="circle-progress" cx="75" cy="75" r="70"></circle>
+                    </svg>
+                    <div class="percentage-text" id="resConfidence">0%</div>
+                </div>
+                
+                <p style="color:#666;">Confidence Score</p>
+
+                <div id="resResultBox" style="margin-top:2rem;">
+                    <h3 id="resStatus" class="result-status"></h3>
+                    <p>Classification: <strong id="resClass" style="font-size:1.2rem;"></strong></p>
+                </div>
+
+                <div style="margin-top: 2rem; width:100%;">
+                    <button id="downloadReportBtn" class="btn-secondary" style="width:100%;">
+                        <i class="fas fa-file-pdf"></i> Download Medical Report
+                    </button>
+                    <button onclick="window.location.reload()" class="btn-secondary" style="width:100%; background-color:#f8f9fa; color:#333; margin-top:0.5rem; border:1px solid #ddd;">
+                        <i class="fas fa-redo"></i> New Analysis
+                    </button>
+                </div>
+            </div>
+
         </div>
 
-        <!-- ── Class Legend ────────────────────────────────────────── -->
-        <div class="card legend-card">
-            <h3>Classification Categories</h3>
-            <div class="legend-grid">
-                <div class="legend-item">
-                    <span class="legend-dot" style="background:#ef4444"></span>
-                    <div><strong>Glioma</strong><p>Tumor arising from glial cells</p></div>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background:#f59e0b"></span>
-                    <div><strong>Meningioma</strong><p>Tumor from meningeal tissue</p></div>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background:#10b981"></span>
-                    <div><strong>No Tumor</strong><p>Normal brain MRI scan</p></div>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background:#6366f1"></span>
-                    <div><strong>Pituitary</strong><p>Tumor at the pituitary gland</p></div>
-                </div>
-            </div>
-        </div>
     </div>
 
-    <footer class="footer">
-        <p>Brain Tumor Classification Pipeline &mdash; For Research &amp; Educational Use Only</p>
+    <footer>
+        <p>&copy; 2024 NeuroScan AI. IEEE Standard Medical Imaging System.</p>
+        <p style="font-size:0.7rem; margin-top:0.5rem;">Disclaimer: This AI system is for assistive diagnostic purposes only. All results must be verified by a certified radiologist.</p>
     </footer>
 
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
     <script>
-        const dropZone     = document.getElementById('dropZone');
-        const fileInput    = document.getElementById('fileInput');
-        const previewSec   = document.getElementById('previewSection');
-        const previewImg   = document.getElementById('previewImage');
-        const clearBtn     = document.getElementById('clearBtn');
-        const analyzeBtn   = document.getElementById('analyzeBtn');
-        const resultsCard  = document.getElementById('resultsCard');
-        const probBars     = document.getElementById('probabilityBars');
-        const predLabel    = document.getElementById('predictionLabel');
-        const confBadge    = document.getElementById('confidenceBadge');
-        const modelInfo    = document.getElementById('modelInfo');
-
-        let selectedFile = null;
-
-        const classColors = {
-            glioma: '#ef4444',
-            meningioma: '#f59e0b',
-            notumor: '#10b981',
-            pituitary: '#6366f1'
-        };
-
-        /* ── Drag & Drop ────────────────────────────────────────── */
-        dropZone.addEventListener('click', () => fileInput.click());
-
-        dropZone.addEventListener('dragover', e => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        });
-
-        fileInput.addEventListener('change', e => {
-            if (e.target.files.length) handleFile(e.target.files[0]);
-        });
-
-        clearBtn.addEventListener('click', resetUI);
-
-        /* ── File handling ──────────────────────────────────────── */
-        function handleFile(file) {
-            const validTypes = ['image/png','image/jpeg','image/bmp','image/tiff'];
-            if (!validTypes.some(t => file.type.startsWith(t.split('/')[0]))) {
-                alert('Please select a valid image file (PNG, JPG, BMP, TIFF).');
-                return;
-            }
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = e => {
-                previewImg.src = e.target.result;
-                previewSec.classList.remove('hidden');
-                dropZone.classList.add('hidden');
-                analyzeBtn.classList.remove('hidden');
-                analyzeBtn.disabled = false;
-                resultsCard.classList.add('hidden');
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function resetUI() {
-            selectedFile = null;
-            fileInput.value = '';
-            previewSec.classList.add('hidden');
-            dropZone.classList.remove('hidden');
-            analyzeBtn.classList.add('hidden');
-            analyzeBtn.disabled = true;
-            resultsCard.classList.add('hidden');
-        }
-
-        /* ── Analyze ────────────────────────────────────────────── */
-        analyzeBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
-
-            const btnText   = analyzeBtn.querySelector('.btn-text');
-            const btnLoader = analyzeBtn.querySelector('.btn-loader');
-            btnText.classList.add('hidden');
-            btnLoader.classList.remove('hidden');
-            analyzeBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-
-            try {
-                const res = await fetch('/predict', { method: 'POST', body: formData });
-                const data = await res.json();
-
-                if (!data.success) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-
-                /* ── Show results ─────────────────────────────── */
-                predLabel.textContent = data.predicted_class.replace('notumor', 'No Tumor');
-                predLabel.style.color = classColors[data.predicted_class] || '#fff';
-
-                const pct = (data.confidence * 100).toFixed(1);
-                confBadge.textContent = pct + '%';
-                confBadge.className = 'confidence-badge conf-' +
-                    (data.confidence >= 0.9 ? 'high' : data.confidence >= 0.7 ? 'mid' : 'low');
-
-                probBars.innerHTML = '';
-                for (const [cls, prob] of Object.entries(data.all_probabilities)) {
-                    const pctVal = (prob * 100).toFixed(1);
-                    const label = cls.replace('notumor', 'No Tumor');
-                    probBars.innerHTML += `
-                        <div class="prob-row">
-                            <span class="prob-label">${label}</span>
-                            <div class="prob-track">
-                                <div class="prob-fill" style="width:${pctVal}%;background:${classColors[cls]}"></div>
-                            </div>
-                            <span class="prob-value">${pctVal}%</span>
-                        </div>`;
-                }
-
-                modelInfo.textContent = 'Model: ' + (data.model_type || 'unknown');
-                resultsCard.classList.remove('hidden');
-
-            } catch (err) {
-                alert('Network error. Is the server running?');
-                console.error(err);
-            } finally {
-                btnText.classList.remove('hidden');
-                btnLoader.classList.add('hidden');
-                analyzeBtn.disabled = false;
-            }
-        });
+        // Set today's date
+        document.getElementById('pDate').valueAsDate = new Date();
     </script>
+
 </body>
 </html>
