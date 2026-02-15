@@ -16,6 +16,14 @@ def ensure_dir(path: str) -> str:
     os.makedirs(path, exist_ok=True)
     return path
 
+def save_model(model, model_type: str = "custom") -> str:
+    """Save a Keras model to the saved_models directory."""
+    ensure_dir(config.SAVED_MODELS_DIR)
+    path = config.get_model_path(model_type)
+    model.save(path)
+    print(f"[OK] Model saved to: {path}")
+    return path
+
 def load_model(model_type: str = "custom"):
     """Load a previously saved Keras model."""
     path = config.get_model_path(model_type)
@@ -24,6 +32,38 @@ def load_model(model_type: str = "custom"):
     model = keras_load_model(path)
     print(f"[OK] Model loaded from: {path}")
     return model
+
+def plot_training_history(history, save_path: str = None) -> str:
+    """Plot training & validation loss/accuracy curves and save as PNG."""
+    if save_path is None:
+        ensure_dir(config.RESULTS_DIR)
+        save_path = os.path.join(config.RESULTS_DIR, "training_history.png")
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Accuracy
+    axes[0].plot(history.history["accuracy"], label="Train Accuracy", linewidth=2)
+    axes[0].plot(history.history["val_accuracy"], label="Val Accuracy", linewidth=2)
+    axes[0].set_title("Model Accuracy", fontsize=14, fontweight="bold")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Accuracy")
+    axes[0].legend(loc="lower right")
+    axes[0].grid(True, alpha=0.3)
+
+    # Loss
+    axes[1].plot(history.history["loss"], label="Train Loss", linewidth=2)
+    axes[1].plot(history.history["val_loss"], label="Val Loss", linewidth=2)
+    axes[1].set_title("Model Loss", fontsize=14, fontweight="bold")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Loss")
+    axes[1].legend(loc="upper right")
+    axes[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"[OK] Training history plot saved to: {save_path}")
+    return save_path
 
 def get_class_label(index: int) -> str:
     """Convert a class index to its human-readable label."""

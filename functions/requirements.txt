@@ -1,0 +1,9 @@
+
+firebase-functions
+firebase-admin
+flask
+tensorflow-cpu>=2.10
+numpy
+pillow
+opencv-python-headless
+werkzeug
