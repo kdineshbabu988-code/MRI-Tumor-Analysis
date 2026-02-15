@@ -12,35 +12,26 @@ import os
 
 import config
 from data_pipeline import preprocess_single_image
-from utils import load_model, format_prediction
+from utils import load_model, format_prediction, safe_format
 
 
 def predict(image_path: str, model_type: str = "custom") -> dict:
     """
-    Predict the tumor class for a single MRI image.
-
-    Args:
-        image_path: Path to the MRI image file.
-        model_type: 'custom' or 'resnet50'.
-
-    Returns:
-        Dict with 'predicted_class', 'confidence', 'all_probabilities'.
+    Predict the tumor class for a single MRI image using safety logic.
     """
     if not os.path.isfile(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
-    # Validate file extension
-    ext = os.path.splitext(image_path)[1].lower().lstrip(".")
-    if ext not in config.ALLOWED_EXTENSIONS:
-        raise ValueError(
-            f"Unsupported file type '.{ext}'. "
-            f"Allowed: {config.ALLOWED_EXTENSIONS}"
-        )
-
     model = load_model(model_type)
     img_array = preprocess_single_image(image_path)
     predictions = model.predict(img_array, verbose=0)
-    result = format_prediction(predictions[0])
+    
+    # Use safe_format to apply the specific user-requested thresholds
+    is_valid, message, result = safe_format(predictions[0])
+    
+    # Add the message to the result for visibility
+    result["safety_message"] = message
+    result["is_valid"] = is_valid
 
     return result
 

@@ -70,14 +70,14 @@ SATURATION_THRESHOLD = 0.1
 MIN_PIXEL_VARIANCE = 500
 MIN_EDGE_DENSITY = 0.02
 
-# ─── Prediction Safety Thresholds (UPDATED FOR CALIBRATION) ─────────────
-# Relaxed threshold for medical calibration
-PREDICTION_THRESHOLD = 0.70   # Was 0.98
-REVIEW_THRESHOLD = 0.50       # Was 0.80
-# Entropy limit for ambiguity
-MAX_ENTROPY = 0.99            # Was 0.95
+# ─── Prediction Safety Thresholds (RELAXED CALIBRATION) ─────────────
+# Set according to specific user requirements for accessibility
+PREDICTION_THRESHOLD = 0.75   # Threshold for high-confidence accept
+REVIEW_THRESHOLD = 0.60       # Threshold for review/ambiguity
+# Entropy limit for ambiguity (higher = more tolerant of uncertainty)
+MAX_ENTROPY = 1.2             
 # Margin for certainty
-MIN_MARGIN = 0.10             # Was 0.20
+MIN_MARGIN = 0.15             
 
 # ─── Model File Names ───────────────────────────────────────────────────────
 CUSTOM_MODEL_NAME = "brain_tumor_custom_cnn.h5"
