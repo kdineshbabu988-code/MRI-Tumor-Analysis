@@ -1,9 +1,7 @@
-tensorflow>=2.10
-flask>=2.3
-numpy
-matplotlib
-seaborn
-scikit-learn
-Pillow
-opencv-python
-pydicom
+flask==3.0.0
+gunicorn==21.2.0
+
+numpy==1.26.4
+pillow==10.2.0
+
+tensorflow-cpu==2.15.0
