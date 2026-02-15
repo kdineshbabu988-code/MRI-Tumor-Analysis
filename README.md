@@ -312,4 +312,5 @@ All hyperparameters are centralised in `config.py`:
 This project is for **educational and research purposes only**.
 #   M R I - B r a i n - T u m o r - C l a s s i f i c a t i o n  
  #   M R I - B r a i n - T u m o r - C l a s s i f i c a t i o n  
+ #   M R I - T u m o r - A n a l y s i s  
  
