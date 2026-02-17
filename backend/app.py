@@ -1,13 +1,5 @@
 """
 app.py — Flask web application for brain tumor classification.
-
-Endpoints:
-    GET  /         — Upload page with drag-and-drop MRI image upload.
-    POST /predict  — JSON API that returns {predicted_class, confidence, all_probabilities}.
-
-Usage:
-    python app.py
-    Then open http://localhost:5000 in your browser.
 """
 
 import os
@@ -17,9 +9,9 @@ from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 
 import config
+from utils import ensure_dir, validate_image_content, safe_format
+from predict import load_model_instance, predict_brain_tumor
 from data_pipeline import preprocess_single_image
-from utils import load_model, format_prediction, ensure_dir, validate_image_content
-
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  APP SETUP
@@ -32,30 +24,12 @@ UPLOAD_DIR = os.path.join(config.BASE_DIR, "uploads")
 ensure_dir(UPLOAD_DIR)
 
 # ── Load model at startup ────────────────────────────────────────────────
-_model = None
-_model_type = None
-
-
-def _get_model():
-    """Lazy-load the model (tries custom first, then resnet50)."""
-    global _model, _model_type
-    if _model is None:
-        # Priority: EfficientNet > ResNet50 > Custom
-        for mt in ["efficientnet", "resnet50", "custom"]:
-            try:
-                _model = load_model(mt)
-                _model_type = mt
-                print(f"[OK] Loaded {mt} model for inference.")
-                break
-            except FileNotFoundError:
-                continue
-        if _model is None:
-            raise RuntimeError(
-                "No trained model found! Train a model first:\n"
-                "  python train.py --model efficientnet  (Recommended)\n"
-                "  python train.py --model custom"
-            )
-    return _model
+# We preload the model using the singleton in predict.py
+try:
+    load_model_instance("efficientnet")
+except Exception as e:
+    print(f"\n[WARNING] Could not preload model: {e}")
+    print("    Application will try to load it on first request.\n")
 
 
 def _allowed_file(filename: str) -> bool:
@@ -80,15 +54,6 @@ def index():
 def predict():
     """
     Accept an MRI image upload and return the prediction as JSON.
-
-    Returns:
-        JSON: {
-            "success": true,
-            "predicted_class": "glioma",
-            "confidence": 0.9712,
-            "all_probabilities": {"glioma": 0.97, "meningioma": 0.01, ...},
-            "model_type": "custom"
-        }
     """
     try:
         # ── Validate request ─────────────────────────────────────────────
@@ -110,82 +75,59 @@ def predict():
         file.save(filepath)
 
         # ── Content Validation ───────────────────────────────────────────
-        # Reject unwanted non-MRI/CT images (e.g. random color photos)
-        is_valid, error_msg = validate_image_content(filepath)
-        if not is_valid:
+        # Reject unwanted non-MRI/CT images
+        is_valid_img, error_msg = validate_image_content(filepath)
+        if not is_valid_img:
             if os.path.exists(filepath):
                 os.remove(filepath)
             return jsonify({"success": False, "error": error_msg}), 400
 
         try:
-            model = _get_model()
+            # ── Main Prediction ──────────────────────────────────────────────
+            # ── Main Prediction ──────────────────────────────────────────────
+            # Use the unified prediction function from predict.py
+            # This handles loading, preprocessing, and formatting internally
+            result = predict_brain_tumor(filepath, model_type="efficientnet")
             
-            # ── Test Time Augmentation (TTA) ──────────────────────────────
-            # We improve accuracy by predicting on:
-            # 1. The original image
-            # 2. The horizontally flipped image
-            # Then averaging the probabilities.
-            
-            # Preprocess original
-            img_array = preprocess_single_image(filepath)
-            
-            # Create a batch of 2 images: [original, flipped]
-            # Note: preprocess_single_image returns (1, 224, 224, 3)
-            # We access [0] to get (224, 224, 3)
-            img_orig = img_array[0]
-            img_flip = np.fliplr(img_orig)
-            
-            batch = np.array([img_orig, img_flip])
-            
-            # Get predictions for both
-            preds = model.predict(batch, verbose=0)
-            
-            # Average the predictions
-            avg_pred = np.mean(preds, axis=0)
-            
-            # Use safe_format for 3-tier validation (Reject/Review/Accept)
-            from utils import safe_format
-            is_valid, message, result = safe_format(avg_pred)
-
-            if not is_valid:  # Status is 'reject'
+            # Check status returned by predict_brain_tumor
+            if result["status"] == "reject":
                 return jsonify({
                     "success": False,
-                    "error": message,
-                    "status": result.get("status", "reject"),
-                    "all_probabilities": {
-                        k: round(v, 4) for k, v in result["all_probabilities"].items()
-                    }
+                    "error": result["message"],
+                    "status": "reject",
+                    "all_probabilities": result["all_probabilities"]
                 }), 422
 
             # 'accept' or 'review'
             return jsonify({
                 "success": True,
                 "status": result["status"],
-                "message": message,
+                "message": result["message"],
                 "predicted_class": result["predicted_class"],
                 "confidence": round(result["confidence"], 4),
-                "all_probabilities": {
-                    k: round(v, 4) for k, v in result["all_probabilities"].items()
-                },
-                "model_type": _model_type,
-                "tta_enabled": True
+                "all_probabilities": result["all_probabilities"],
+                "model_type": "efficientnet",
+                "tta_enabled": False
             })
+
         finally:
-            # Clean up uploaded file after prediction
+            # Clean up uploaded file
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-    except RuntimeError as e:
-        return jsonify({"success": False, "error": str(e)}), 503
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "error": "Internal server error."}), 500
+        return jsonify({"success": False, "error": f"Processing error: {str(e)}"}), 500
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Health check endpoint for deployment monitoring."""
-    return jsonify({"status": "healthy", "model_loaded": _model is not None})
+    """Health check endpoint."""
+    try:
+        load_model_instance("efficientnet")
+        return jsonify({"status": "healthy", "model_loaded": True})
+    except:
+        return jsonify({"status": "degraded", "model_loaded": False})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -197,17 +139,7 @@ if __name__ == "__main__":
     print("  BRAIN TUMOR CLASSIFIER - WEB APPLICATION")
     print("=" * 60)
     print(f"  Server  : http://localhost:{config.FLASK_PORT}")
-    print(f"  Debug   : {config.FLASK_DEBUG}")
     print("=" * 60 + "\n")
-    print("  [!] DISCLAIMER: For research/educational use only.")
-    print("     Not intended for clinical diagnosis.\n")
-
-    # Pre-load model so first request is fast
-    try:
-        _get_model()
-    except RuntimeError as e:
-        print(f"\n[!] WARNING: {e}")
-        print("    The app will start, but /predict will fail until a model is trained.\n")
 
     app.run(
         host=config.FLASK_HOST,

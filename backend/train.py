@@ -2,8 +2,8 @@
 train.py — Training workflow for the Brain Tumor Classification Pipeline.
 
 Usage:
-    python train.py                          # Train default model for 30 epochs
-    python train.py --model custom --epochs 30
+    python train.py                          # Train default model for 50 epochs
+    python train.py --model efficientnet --epochs 50
 """
 
 import argparse
@@ -16,6 +16,8 @@ from tensorflow.keras.callbacks import (
     ModelCheckpoint,
     TensorBoard,
 )
+from tensorflow.keras.optimizers import Adam
+# Import legacy optimizer for consistent Apple/M1 support if needed, though standard Adam usually works fine.
 
 import config
 from data_pipeline import create_data_generators
@@ -26,6 +28,7 @@ from utils import ensure_dir, save_model, plot_training_history
 def get_callbacks(model_type: str) -> list:
     """
     Build the list of training callbacks for medical accuracy.
+    Includes EarlyStopping and ReduceLROnPlateau as requested.
     """
     ensure_dir(config.SAVED_MODELS_DIR)
     ensure_dir(config.LOG_DIR)
@@ -35,7 +38,7 @@ def get_callbacks(model_type: str) -> list:
     return [
         EarlyStopping(
             monitor="val_loss",
-            patience=config.EARLY_STOPPING_PATIENCE,
+            patience=config.EARLY_STOPPING_PATIENCE, # Configured patience
             restore_best_weights=True,
             verbose=1,
         ),
@@ -60,16 +63,16 @@ def get_callbacks(model_type: str) -> list:
     ]
 
 
-def train(model_type: str = "custom", epochs: int = 30, fine_tune: bool = False):
+def train(model_type: str = "efficientnet", epochs: int = 50, fine_tune: bool = False):
     """
     Complete training workflow for Brain MRI Classification.
-    Ensures accuracy > 94% through sufficient epochs and callbacks.
+    Ensures high accuracy through sufficient epochs (50) and callbacks.
     """
-    # Fallback to config if none provided, but default to 30 as requested
-    final_epochs = epochs if epochs is not None else config.EPOCHS
+    # Enforce defaults requested by user if not overridden
+    final_epochs = epochs if epochs is not None else 50
 
     print("\n" + "=" * 60)
-    print("  BRAIN TUMOR CLASSIFICATION - TRAINING (EXPERT MODE)")
+    print("  BRAIN TUMOR CLASSIFICATION - TRAINING (HIGH ACCURACY MODE)")
     print("=" * 60)
     print(f"  Model      : {model_type}")
     print(f"  Target Epochs: {final_epochs}")
@@ -86,6 +89,14 @@ def train(model_type: str = "custom", epochs: int = 30, fine_tune: bool = False)
         model = build_model(model_type, fine_tune=fine_tune)
     else:
         model = build_model(model_type)
+
+    # Compile with specific Adam Optimizer settings as requested
+    print(f"[INFO] Compiling model with Adam(learning_rate=0.0001)...")
+    model.compile(
+        optimizer=Adam(learning_rate=0.0001),
+        loss="categorical_crossentropy",
+        metrics=["accuracy"]
+    )
 
     # ── Step 3: Train ────────────────────────────────────────────────────
     print(f"[3/4] Starting training for {final_epochs} epochs...\n")
@@ -123,14 +134,14 @@ def parse_args():
         "--model",
         type=str,
         choices=["custom", "resnet50", "efficientnet"],
-        default="custom",
-        help="Architecture (default: custom)",
+        default="efficientnet",  # Changed default to better model
+        help="Architecture (default: efficientnet)",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=30,
-        help="Number of training epochs (default: 30)",
+        default=50,  # Changed default to 50
+        help="Number of training epochs (default: 50)",
     )
     parser.add_argument(
         "--fine-tune",

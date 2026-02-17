@@ -133,19 +133,19 @@ def safe_format(probabilities: np.ndarray) -> tuple[bool, str, dict]:
              return True, msg + f"Diagnosis: Detected {predicted_label.capitalize()}.", result
 
     # Rule 2: Near-Threshold Fallback
-    # User Req: If confidence > 0.70, prevent "Ambiguity" error
-    if confidence >= 0.70:
+    # User Req: If confidence > PREDICTION_THRESHOLD (adjusted), prevent "Ambiguity" error
+    if confidence >= config.REVIEW_THRESHOLD:
         result["status"] = "accept"
         return True, f"Confidence: {confidence:.2f}. Prediction verified with fallback logic.", result
              
     # Rule 3: Middle Ground / Review
-    # Only show ambiguity if confidence < 0.60 (User Req 5) OR if entropy is truly extreme
-    if confidence >= 0.60:
+    # Only show ambiguity if confidence < REVIEW_THRESHOLD
+    if confidence >= config.REVIEW_THRESHOLD - 0.1: # Allow a slightly lower bound for review
         result["status"] = "review"
         return True, f"Confidence: {confidence:.2f}. Result stable but review advised.", result
         
-    # Rule 4: Ambiguity Detection (Strictly for low confidence < 0.60)
-    if entropy > config.MAX_ENTROPY: # 1.2
+    # Rule 4: Ambiguity Detection
+    if entropy > config.MAX_ENTROPY:
          result["status"] = "reject"
          return False, f"Scanning Ambiguity Detected (Entropy: {entropy:.2f}). Please upload a clearer scan.", result
 

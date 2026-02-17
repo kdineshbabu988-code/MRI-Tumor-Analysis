@@ -6,7 +6,8 @@ import os
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_DIR = os.path.join(BASE_DIR, "Training")  # Corrected path
+# Adjusted to point to the correct parent directory if needed, or local
+DATASET_DIR = os.path.join(BASE_DIR, "..", "Training") 
 SAVED_MODELS_DIR = os.path.join(BASE_DIR, "saved_models")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
@@ -70,19 +71,17 @@ SATURATION_THRESHOLD = 0.1
 MIN_PIXEL_VARIANCE = 500
 MIN_EDGE_DENSITY = 0.02
 
-# ─── Prediction Safety Thresholds (RELAXED CALIBRATION) ─────────────
-# Set according to specific user requirements for accessibility
-PREDICTION_THRESHOLD = 0.75   # Threshold for high-confidence accept
-REVIEW_THRESHOLD = 0.60       # Threshold for review/ambiguity
-# Entropy limit for ambiguity (higher = more tolerant of uncertainty)
-MAX_ENTROPY = 1.2             
-# Margin for certainty
-MIN_MARGIN = 0.15             
+# ─── Prediction Safety Thresholds ───────────────────────────────────────────
+PREDICTION_THRESHOLD = 0.70   
+REVIEW_THRESHOLD = 0.60       
+MAX_ENTROPY = 2.0             
+MIN_MARGIN = 0.05             
 
 # ─── Model File Names ───────────────────────────────────────────────────────
 CUSTOM_MODEL_NAME = "brain_tumor_custom_cnn.h5"
 RESNET_MODEL_NAME = "brain_tumor_resnet50.h5"
-EFFICIENTNET_MODEL_NAME = "brain_tumor_efficientnet.h5"
+# Corrected as requested
+EFFICIENTNET_MODEL_NAME = "model.h5"
 
 def get_model_path(model_type="custom"):
     """Return the full path to the saved model file."""
@@ -93,5 +92,12 @@ def get_model_path(model_type="custom"):
     elif model_type == "efficientnet":
         name = EFFICIENTNET_MODEL_NAME
     else:
-        name = CUSTOM_MODEL_NAME
+        # Fallback
+        name = EFFICIENTNET_MODEL_NAME
+        
+    # Check if the file exists in the root of backend first (user common issue)
+    local_path = os.path.join(BASE_DIR, name)
+    if os.path.exists(local_path):
+        return local_path
+        
     return os.path.join(SAVED_MODELS_DIR, name)

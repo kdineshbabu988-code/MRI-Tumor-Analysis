@@ -1,73 +1,109 @@
 """
-predict.py — Single-image inference utility for brain tumor classification.
-
-Usage:
-    python predict.py path/to/mri_image.jpg
-    python predict.py path/to/mri_image.jpg --model resnet50
+predict.py — Inference module with global model caching.
 """
 
-import argparse
-import sys
 import os
+import sys
+import numpy as np
+from tensorflow.keras.models import load_model as keras_load_model
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+import argparse
 
 import config
-from data_pipeline import preprocess_single_image
-from utils import load_model, format_prediction, safe_format
 
+# ─── Global Model Cache ───────────────────────────────────────────────
+_MODEL = None
+_MODEL_TYPE = None
 
-def predict(image_path: str, model_type: str = "custom") -> dict:
+def load_model_instance(model_type="efficientnet"):
     """
-    Predict the tumor class for a single MRI image using safety logic.
+    Load the Keras model globally. Ensures it is loaded only once.
     """
-    if not os.path.isfile(image_path):
+    global _MODEL, _MODEL_TYPE
+    
+    # If already loaded and type matches, return it
+    if _MODEL is not None and _MODEL_TYPE == model_type:
+        return _MODEL
+        
+    print(f"[INFO] Loading model: {model_type}...")
+    try:
+        model_path = config.get_model_path(model_type)
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found at: {model_path}")
+            
+        _MODEL = keras_load_model(model_path)
+        _MODEL_TYPE = model_type
+        print(f"[SUCCESS] Model loaded from {model_path}")
+        return _MODEL
+    except Exception as e:
+        print(f"[ERROR] Failed to load model: {e}")
+        raise e
+
+def predict_brain_tumor(image_path, model_type="efficientnet"):
+    """
+    Predict the class of a brain MRI image ensuring consistent results.
+    """
+    # 1. Ensure Model is Loaded
+    model = load_model_instance(model_type)
+    
+    # 2. Preprocess Image (EXACT match to training)
+    if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
-
-    model = load_model(model_type)
-    img_array = preprocess_single_image(image_path)
+        
+    try:
+        # Load image with target size 224x224
+        img = load_img(image_path, target_size=(224, 224))
+        
+        # Convert to array
+        img_array = img_to_array(img)
+        
+        # Rescale specific to training (1./255)
+        img_array = img_array / 255.0
+        
+        # Expand dimensions to create batch (1, 224, 224, 3)
+        img_array = np.expand_dims(img_array, axis=0)
+        
+    except Exception as e:
+        raise ValueError(f"Error processing image: {e}")
+    
+    # 3. Predict
     predictions = model.predict(img_array, verbose=0)
     
-    # Use safe_format to apply the specific user-requested thresholds
-    is_valid, message, result = safe_format(predictions[0])
+    # 4. Format Output
+    probabilities = predictions[0]
+    predicted_idx = np.argmax(probabilities)
+    confidence = float(np.max(probabilities))
+    predicted_label = config.CLASS_NAMES[predicted_idx]
     
-    # Add the message to the result for visibility
-    result["safety_message"] = message
-    result["is_valid"] = is_valid
-
-    return result
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Predict tumor class from an MRI image.")
-    parser.add_argument("image", type=str, help="Path to the MRI image file")
-    parser.add_argument(
-        "--model",
-        type=str,
-        choices=["custom", "resnet50"],
-        default="custom",
-        help="Model type to use (default: custom)",
-    )
-    args = parser.parse_args()
-
-    result = predict(args.image, args.model)
-
-    print("\n" + "=" * 50)
-    print("  BRAIN TUMOR PREDICTION RESULT")
-    print("=" * 50)
-    print(f"  Image     : {args.image}")
-    print(f"  Model     : {args.model}")
-    print(f"  Predicted : {result['predicted_class']}")
-    print(f"  Confidence: {result['confidence']:.4f}  ({result['confidence']*100:.2f}%)")
-    print("\n  Class Probabilities:")
-    for name, prob in result["all_probabilities"].items():
-        bar = "#" * int(prob * 30)
-        print(f"    {name:15s} : {prob:.4f}  {bar}")
-    print("=" * 50 + "\n")
-
-    # Clinical disclaimer
-    print("  [!] DISCLAIMER: This prediction is for research/educational")
-    print("     purposes only and NOT a medical diagnosis. Always consult")
-    print("     a qualified medical professional.\n")
-
+    # 5. Threshold Logic (User requested)
+    status = "accept"
+    message = "Prediction successful."
+    
+    if confidence < 0.35:
+        # Low confidence fallback
+        status = "reject"
+        message = f"Low Confidence ({confidence:.2f}). Please upload a clearer MRI scan."
+    
+    return {
+        "predicted_class": predicted_label,
+        "confidence": confidence,
+        "status": status,
+        "message": message,
+        "all_probabilities": {
+            config.CLASS_NAMES[i]: float(probabilities[i]) 
+            for i in range(len(config.CLASS_NAMES))
+        }
+    }
 
 if __name__ == "__main__":
-    main()
+    # Allow CLI usage
+    parser = argparse.ArgumentParser()
+    parser.add_argument("image", help="Path to MRI image")
+    parser.add_argument("--model", default="efficientnet", help="Model type")
+    args = parser.parse_args()
+    
+    try:
+        result = predict_brain_tumor(args.image, args.model)
+        print(result)
+    except Exception as e:
+        print(f"Error: {e}")

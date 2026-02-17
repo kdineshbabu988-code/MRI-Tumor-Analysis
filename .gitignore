@@ -1,27 +1,25 @@
-# ─── Data & Models ───
-dataset/
-Training/
-saved_models/
-uploads/
-logs/
-results/*.png
 
-# ─── Python ───
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
-.env
+*.pyc
+
+# Virtual environment
+MRI-Brain-Tumor-Classification_venv/
 venv/
-.venv/
-env/
 venv_old/
 
-# ─── System ───
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
+# Environment variables
+.env
 
-# ─── Pipeline Specific ───
-brain_tumor_model.h5
-train_model.py.txt
+# Jupyter
+.ipynb_checkpoints/
+
+# Custom & Logs
+backend/logs/
+backend/saved_models/
+backend/results/
+backend/uploads/
+logs/
+results/
+saved_models/
+test_images/
